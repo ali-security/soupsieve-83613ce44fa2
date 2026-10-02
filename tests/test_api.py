@@ -590,6 +590,79 @@ class TestInvalid(util.TestCase):
         with self.assertRaises(TypeError):
             sv.filter('div', "not a tag", flags=flags)
 
+    def test_excessive_selectors(self):
+        """Test excessive selectors."""
+
+        # Build a large selector string: "a,a,a,...,a"
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(selector)
+
+    def test_excessive_custom_selectors(self):
+        """Test excessive custom selectors."""
+
+        # Build a large selector string: "a,a,a,...,a"
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile('div:--custom', custom={':--custom': selector})
+
+    def test_excessive_custom_and_normal_selectors(self):
+        """Test excessive custom and normal selectors."""
+
+        count = 5000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(':is({}):--custom'.format(selector), custom={':--custom': selector})
+
+    def test_excessive_builtin_pseudo_class_selectors(self):
+        """Test excessive selectors from built-in pseudo-classes that expand to selector lists."""
+
+        # Each `:checked` expands to a precompiled selector list, so the
+        # expanded size must be counted, not just the number of tokens.
+        count = 2000
+        selector = ",".join(":checked" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(selector)
+
+    def test_excessive_nested_custom_selectors(self):
+        """Test excessive selectors from custom selectors that reference other custom selectors."""
+
+        # A custom selector reused many times by another custom selector must be
+        # counted every time it is referenced, even though it is only compiled once.
+        count = 100
+        custom = {
+            ':--inner': ",".join("a" for _ in range(count)),
+            ':--outer': ",".join(":--inner" for _ in range(count))
+        }
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile('div:--outer', custom=custom)
+
+    def test_selector_count_within_limit(self):
+        """Test that selectors within the limit still compile and match."""
+
+        count = 1000
+        selector = ",".join("a" for _ in range(count))
+
+        markup = '<div><a id="1"></a><span id="2"></span></div>'
+        soup = self.soup(markup, 'html.parser')
+        self.assertEqual([el['id'] for el in sv.select(selector, soup)], ['1'])
+        self.assertEqual(
+            [el['id'] for el in sv.compile('div :--custom', custom={':--custom': selector}).select(soup)],
+            ['1']
+        )
+
 
 class TestSyntaxErrorReporting(util.TestCase):
     """Test reporting of syntax errors."""
