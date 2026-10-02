@@ -193,6 +193,11 @@ class TestLang(util.TestCase):
             flags=util.HTML
         )
 
+    def test_language_unclosed_quote(self):
+        """Test language with unclosed quoted value fails for syntax error, not timeout error."""
+
+        self.assert_syntax_error_no_timeout("div:lang('" + ('x' * 300))
+
     def test_language_list(self):
         """Test language list."""
 

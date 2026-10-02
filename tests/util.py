@@ -1,4 +1,7 @@
 """Test utilities."""
+import os
+import subprocess
+import sys
 import unittest
 import bs4
 import textwrap
@@ -102,6 +105,34 @@ class TestCase(unittest.TestCase):
         print('----Running Assert Test----')
         with self.assertRaises(exception):
             self.compile_pattern(pattern, namespaces=namespace, custom=custom)
+
+    def assert_syntax_error_no_timeout(self, pattern, timeout=10):
+        """
+        Assert pattern fails for syntax error, not timeout error.
+
+        The pattern is compiled in a separate process so that catastrophic backtracking
+        can be stopped on every platform (`signal.alarm` is not available on Windows).
+        """
+
+        script = textwrap.dedent(
+            """
+            import sys
+            sys.path.insert(0, {path!r})
+            import soupsieve as sv
+            try:
+                sv.compile({pattern!r})
+            except sv.SelectorSyntaxError:
+                sys.exit(0)
+            sys.exit('SelectorSyntaxError not raised')
+            """
+        ).format(path=os.path.dirname(os.path.dirname(os.path.abspath(sv.__file__))), pattern=pattern)
+
+        print('----Running Timeout Test----')
+        try:
+            result = subprocess.run([sys.executable, '-'], input=script, universal_newlines=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.fail('Timed out compiling pattern: {!r}'.format(pattern))
+        self.assertEqual(result.returncode, 0)
 
     def assert_selector(self, markup, selectors, expected_ids, namespaces={}, custom=None, flags=0):
         """Assert selector."""
